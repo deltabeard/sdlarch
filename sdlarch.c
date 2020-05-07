@@ -403,32 +403,28 @@ static bool video_set_pixel_format(unsigned format) {
 	return true;
 }
 
+unsigned frame_valid = 0;
 
-static void video_refresh(const void *data, unsigned width, unsigned height, unsigned pitch) {
+static void video_refresh(const void *data, unsigned width, unsigned height, unsigned pitch)
+{
+    if(data != RETRO_HW_FRAME_BUFFER_VALID)
+	return;
+
     if (g_video.clip_w != width || g_video.clip_h != height)
     {
-		g_video.clip_h = height;
-		g_video.clip_w = width;
+        g_video.clip_h = height;
+        g_video.clip_w = width;
 
-		refresh_vertex_data();
-	}
+        refresh_vertex_data();
+    }
 
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
-	glBindTexture(GL_TEXTURE_2D, g_video.tex_id);
+    glBindTexture(GL_TEXTURE_2D, g_video.tex_id);
 
-	if (pitch != g_video.pitch) {
-		g_video.pitch = pitch;
-		glPixelStorei(GL_UNPACK_ROW_LENGTH, g_video.pitch / g_video.bpp);
-	}
-
-    if (data && data != RETRO_HW_FRAME_BUFFER_VALID) {
-		glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, width, height,
-						g_video.pixtype, g_video.pixfmt, data);
-	}
-
-    int w = 0, h = 0;
-    SDL_GetWindowSize(g_win, &w, &h);
-    glViewport(0, 0, w, h);
+    if (pitch != g_video.pitch) {
+        g_video.pitch = pitch;
+        glPixelStorei(GL_UNPACK_ROW_LENGTH, g_video.pitch / g_video.bpp);
+    }
 
     glClear(GL_COLOR_BUFFER_BIT);
 
@@ -436,7 +432,6 @@ static void video_refresh(const void *data, unsigned width, unsigned height, uns
 
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, g_video.tex_id);
-
 
     glBindVertexArray(g_shader.vao);
     glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
@@ -702,22 +697,32 @@ int main(int argc, char *argv[]) {
 
         while (SDL_PollEvent(&ev)) {
             switch (ev.type) {
-            case SDL_QUIT: running = false; break;
+            case SDL_QUIT:
+                running = false;
+                break;
             case SDL_WINDOWEVENT:
                 switch (ev.window.event) {
-                case SDL_WINDOWEVENT_CLOSE: running = false; break;
+                case SDL_WINDOWEVENT_CLOSE:
+                    running = false;
+                    break;
                 case SDL_WINDOWEVENT_RESIZED:
                     resize_cb(ev.window.data1, ev.window.data2);
                     break;
                 }
             }
         }
-		g_retro.retro_run();
-		SDL_RenderPresent(g_ctx);
-	}
 
-	core_unload();
-	video_deinit();
+        g_retro.retro_run();
+        SDL_RenderFlush(g_ctx);
+        SDL_SetRenderDrawColor(g_ctx, 0, 0, 0xFF, SDL_ALPHA_OPAQUE);
+        const SDL_Rect box = { .x = 50, .y = 50, .h = 50, .w = 50 };
+        SDL_RenderFillRect(g_ctx, &box);
+        SDL_SetRenderDrawColor(g_ctx, 0, 0, 0, SDL_ALPHA_OPAQUE);
+        SDL_RenderPresent(g_ctx);
+    }
+
+    core_unload();
+    video_deinit();
 
     SDL_Quit();
 
