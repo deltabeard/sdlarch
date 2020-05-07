@@ -5,13 +5,11 @@
 
 static SDL_Window *g_win = NULL;
 static SDL_Renderer *g_ctx = NULL;
-static SDL_AudioDeviceID g_pcm = 0;
 static struct retro_frame_time_callback runloop_frame_time;
 static retro_usec_t runloop_frame_time_last = 0;
 static const uint8_t *g_kbd = NULL;
-static struct retro_audio_callback audio_callback;
 
-static float g_scale = 3;
+static float g_scale = 1;
 bool running = true;
 
 static struct {
@@ -272,18 +270,9 @@ static void init_framebuffer(int width, int height)
 
         glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, g_video.rbo_id);
     }
-
-    if (g_video.hw.depth || g_video.hw.stencil)
-        glBindRenderbuffer(GL_RENDERBUFFER, 0);
-
-    glBindRenderbuffer(GL_RENDERBUFFER, 0);
+    SDL_RenderClear(g_ctx);
 
     SDL_assert(glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE);
-
-    glClearColor(0, 0, 0, 1);
-    glClear(GL_COLOR_BUFFER_BIT);
-
-    glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 
 
@@ -377,7 +366,7 @@ static void video_configure(const struct retro_game_geometry *geom) {
     SDL_SetWindowSize(g_win, nwidth, nheight);
 
 	//glGenTextures(1, &g_video.tex_id);
-    g_video.tex_id = 2;
+    g_video.tex_id = 1;
 
 	if (!g_video.tex_id)
 		die("Failed to create the video texture");
@@ -481,7 +470,6 @@ static void video_refresh(const void *data, unsigned width, unsigned height, uns
     glUseProgram(0);
 
     SDL_RenderPresent(g_ctx);
-//    SDL_GL_SwapWindow(g_win);
 }
 
 static void video_deinit() {
@@ -490,42 +478,6 @@ static void video_deinit() {
 
 	g_video.tex_id = 0;
 }
-
-
-static void audio_init(int frequency) {
-    SDL_AudioSpec desired;
-    SDL_AudioSpec obtained;
-
-    SDL_zero(desired);
-    SDL_zero(obtained);
-
-    desired.format = AUDIO_S16;
-    desired.freq   = frequency;
-    desired.channels = 2;
-    desired.samples = 4096;
-
-    g_pcm = SDL_OpenAudioDevice(NULL, 0, &desired, &obtained, 0);
-    if (!g_pcm)
-        die("Failed to open playback device: %s", SDL_GetError());
-
-    SDL_PauseAudioDevice(g_pcm, 0);
-
-    // Let the core know that the audio device has been initialized.
-    if (audio_callback.set_state) {
-        audio_callback.set_state(true);
-    }
-}
-
-
-static void audio_deinit() {
-    SDL_CloseAudioDevice(g_pcm);
-}
-
-static size_t audio_write(const int16_t *buf, unsigned frames) {
-    SDL_QueueAudio(g_pcm, buf, sizeof(*buf) * frames * 2);
-    return frames;
-}
-
 
 static void core_log(enum retro_log_level level, const char *fmt, ...) {
 	char buffer[4096] = {0};
@@ -584,11 +536,6 @@ static bool core_environment(unsigned cmd, void *data) {
         runloop_frame_time = *frame_time;
         break;
     }
-    case RETRO_ENVIRONMENT_SET_AUDIO_CALLBACK: {
-        struct retro_audio_callback *audio_cb = (struct retro_audio_callback*)data;
-        audio_callback = *audio_cb;
-        return true;
-    }
 	default:
 		core_log(RETRO_LOG_DEBUG, "Unhandled env #%u", cmd);
 		return false;
@@ -624,13 +571,12 @@ static int16_t core_input_state(unsigned port, unsigned device, unsigned index, 
 
 
 static void core_audio_sample(int16_t left, int16_t right) {
-	int16_t buf[2] = {left, right};
-	audio_write(buf, 1);
+	return;
 }
 
 
 static size_t core_audio_sample_batch(const int16_t *data, size_t frames) {
-	return audio_write(data, frames);
+	return frames;
 }
 
 
@@ -712,7 +658,6 @@ static void core_load_game(const char *filename) {
 	g_retro.retro_get_system_av_info(&av);
 
 	video_configure(&av.geometry);
-	audio_init(av.timing.sample_rate);
 
     if (info.data)
         SDL_free((void*)info.data);
@@ -753,8 +698,8 @@ int main(int argc, char *argv[]) {
     if (SDL_Init(SDL_INIT_EVERYTHING) < 0)
         die("Failed to initialize SDL");
 
-    g_video.hw.version_major = 4;
-    g_video.hw.version_minor = 5;
+    g_video.hw.version_major = 3;
+    g_video.hw.version_minor = 3;
     g_video.hw.context_type  = RETRO_HW_CONTEXT_OPENGL_CORE;
     g_video.hw.context_reset   = noop;
     g_video.hw.context_destroy = noop;
@@ -782,11 +727,6 @@ int main(int argc, char *argv[]) {
             runloop_frame_time.callback(delta * 1000);
         }
 
-        // Ask the core to emit the audio.
-        if (audio_callback.callback) {
-            audio_callback.callback();
-        }
-
         while (SDL_PollEvent(&ev)) {
             switch (ev.type) {
             case SDL_QUIT: running = false; break;
@@ -799,13 +739,10 @@ int main(int argc, char *argv[]) {
                 }
             }
         }
-
-        glBindFramebuffer(GL_FRAMEBUFFER, 0);
 		g_retro.retro_run();
 	}
 
 	core_unload();
-	audio_deinit();
 	video_deinit();
 
     SDL_Quit();
