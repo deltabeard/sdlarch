@@ -9,7 +9,6 @@ static struct retro_frame_time_callback runloop_frame_time;
 static retro_usec_t runloop_frame_time_last = 0;
 static const uint8_t *g_kbd = NULL;
 
-static float g_scale = 1;
 bool running = true;
 
 static struct {
@@ -329,28 +328,9 @@ static void create_window(int width, int height) {
     resize_cb(width, height);
 }
 
-
-static void resize_to_aspect(double ratio, int sw, int sh, int *dw, int *dh) {
-	*dw = sw;
-	*dh = sh;
-
-	if (ratio <= 0)
-		ratio = (double)sw / sh;
-
-	if ((float)sw / sh < 1)
-		*dw = *dh * ratio;
-	else
-		*dh = *dw / ratio;
-}
-
-
 static void video_configure(const struct retro_game_geometry *geom) {
-	int nwidth, nheight;
-
-	resize_to_aspect(geom->aspect_ratio, geom->base_width * 1, geom->base_height * 1, &nwidth, &nheight);
-
-	nwidth *= g_scale;
-	nheight *= g_scale;
+	int nwidth = geom->base_width;
+	int nheight = geom->base_height;
 
 	if (!g_win)
 		create_window(nwidth, nheight);
@@ -358,15 +338,13 @@ static void video_configure(const struct retro_game_geometry *geom) {
 	if (g_video.tex_id)
 		glDeleteTextures(1, &g_video.tex_id);
 
-	g_video.tex_id = 0;
-
 	if (!g_video.pixfmt)
 		g_video.pixfmt = GL_UNSIGNED_SHORT_5_5_5_1;
 
     SDL_SetWindowSize(g_win, nwidth, nheight);
 
 	//glGenTextures(1, &g_video.tex_id);
-    g_video.tex_id = 1;
+	g_video.tex_id = 1;
 
 	if (!g_video.tex_id)
 		die("Failed to create the video texture");
@@ -374,9 +352,6 @@ static void video_configure(const struct retro_game_geometry *geom) {
 	g_video.pitch = geom->base_width * g_video.bpp;
 
 	glBindTexture(GL_TEXTURE_2D, g_video.tex_id);
-
-//	glPixelStorei(GL_UNPACK_ALIGNMENT, s_video.pixfmt == GL_UNSIGNED_INT_8_8_8_8_REV ? 4 : 2);
-//	glPixelStorei(GL_UNPACK_ROW_LENGTH, s_video.pitch / s_video.bpp);
 
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
@@ -468,8 +443,6 @@ static void video_refresh(const void *data, unsigned width, unsigned height, uns
     glBindVertexArray(0);
 
     glUseProgram(0);
-
-    SDL_RenderPresent(g_ctx);
 }
 
 static void video_deinit() {
@@ -740,6 +713,7 @@ int main(int argc, char *argv[]) {
             }
         }
 		g_retro.retro_run();
+		SDL_RenderPresent(g_ctx);
 	}
 
 	core_unload();
