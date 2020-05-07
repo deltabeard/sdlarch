@@ -4,7 +4,7 @@
 #include "glad.h"
 
 static SDL_Window *g_win = NULL;
-static SDL_GLContext *g_ctx = NULL;
+static SDL_Renderer *g_ctx = NULL;
 static SDL_AudioDeviceID g_pcm = 0;
 static struct retro_frame_time_callback runloop_frame_time;
 static retro_usec_t runloop_frame_time_last = 0;
@@ -304,27 +304,17 @@ static void create_window(int width, int height) {
         SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, SDL_GL_CONTEXT_DEBUG_FLAG);
     }
 
-    switch (g_video.hw.context_type) {
-    case RETRO_HW_CONTEXT_OPENGL_CORE:
-        SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
-        break;
-    case RETRO_HW_CONTEXT_OPENGLES2:
-        SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
-        break;
-    case RETRO_HW_CONTEXT_OPENGL:
-        if (g_video.hw.version_major >= 3)
-            SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_COMPATIBILITY);
-        break;
-    default:
-        die("Unsupported hw context %i. (only OPENGL, OPENGL_CORE and OPENGLES2 supported)", g_video.hw.context_type);
-    }
+    /* Force OpenGL Core for this test. */
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
 
     g_win = SDL_CreateWindow("sdlarch", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, width, height, SDL_WINDOW_OPENGL);
 
 	if (!g_win)
         die("Failed to create window: %s", SDL_GetError());
 
-    g_ctx = SDL_GL_CreateContext(g_win);
+	/* Creates context instead of using createRenderer. */
+	g_ctx = SDL_CreateRenderer(g_win, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
+    //g_ctx = SDL_GL_CreateContext(g_win);
 
     if (!g_ctx)
         die("Failed to create OpenGL context: %s", SDL_GetError());
@@ -343,8 +333,9 @@ static void create_window(int width, int height) {
 
     init_shaders();
 
-    SDL_GL_SetSwapInterval(1);
-    SDL_GL_SwapWindow(g_win); // make apitrace output nicer
+    //SDL_GL_SetSwapInterval(1);
+    //SDL_GL_SwapWindow(g_win); // make apitrace output nicer
+    SDL_RenderPresent(g_ctx);
 
     resize_cb(width, height);
 }
@@ -385,7 +376,8 @@ static void video_configure(const struct retro_game_geometry *geom) {
 
     SDL_SetWindowSize(g_win, nwidth, nheight);
 
-	glGenTextures(1, &g_video.tex_id);
+	//glGenTextures(1, &g_video.tex_id);
+    g_video.tex_id = 2;
 
 	if (!g_video.tex_id)
 		die("Failed to create the video texture");
@@ -411,6 +403,8 @@ static void video_configure(const struct retro_game_geometry *geom) {
 	g_video.tex_h = geom->max_height;
 	g_video.clip_w = geom->base_width;
 	g_video.clip_h = geom->base_height;
+	printf("%dw * %dh, %d * %d\n",  geom->base_width, geom->base_height,
+			geom->max_width, geom->max_height);
 
 	refresh_vertex_data();
 
@@ -486,7 +480,8 @@ static void video_refresh(const void *data, unsigned width, unsigned height, uns
 
     glUseProgram(0);
 
-    SDL_GL_SwapWindow(g_win);
+    SDL_RenderPresent(g_ctx);
+//    SDL_GL_SwapWindow(g_win);
 }
 
 static void video_deinit() {

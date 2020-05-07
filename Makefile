@@ -1,6 +1,6 @@
 target   := sdlarch
 sources  := sdlarch.c glad.c
-CFLAGS   := -Wall -g
+CFLAGS   := -Wall -Ofast -s
 LFLAGS   := -static-libgcc
 LIBS     := 
 packages := sdl2
