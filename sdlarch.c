@@ -346,8 +346,7 @@ static void video_configure(const struct retro_game_geometry *geom) {
 
     g_video.pitch = geom->base_width * g_video.bpp;
 
-    SDL_GL_BindTexture(g_tex, NULL, NULL); // TODO: Probably not needed.
-    SDL_SetTextureScaleMode(g_tex, SDL_ScaleModeNearest);
+    //SDL_GL_BindTexture(g_tex, NULL, NULL); // TODO: Probably not needed.
     SDL_GL_UnbindTexture(g_tex);
 
     init_framebuffer(geom->base_width, geom->base_height);
@@ -418,11 +417,9 @@ static void video_refresh(const void *data, unsigned width, unsigned height, uns
     glUseProgram(g_shader.program);
 
     SDL_RenderClear(g_ctx);
+    SDL_SetRenderTarget(g_ctx, g_tex);
     SDL_SetRenderTarget(g_ctx, NULL);
-    SDL_RenderCopy(g_ctx, g_tex, NULL, NULL);
-    //SDL_GL_BindTexture(g_tex, NULL, NULL);
-    //glActiveTexture(GL_TEXTURE0);
-    //glBindTexture(GL_TEXTURE_2D, g_video.tex_id);
+    SDL_RenderCopy(g_ctx, g_tex, NULL, NULL); // WTF?
 
     glBindVertexArray(g_shader.vao);
     glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
@@ -709,6 +706,7 @@ int main(int argc, char *argv[]) {
         const SDL_Rect box = { .x = 50, .y = 50, .h = 50, .w = 50 };
         SDL_RenderFillRect(g_ctx, &box);
         SDL_SetRenderDrawColor(g_ctx, 0, 0, 0, SDL_ALPHA_OPAQUE);
+	SDL_RenderCopyEx(g_ctx, g_tex, NULL, NULL, 90, NULL, 0);
         SDL_RenderPresent(g_ctx);
     }
 
