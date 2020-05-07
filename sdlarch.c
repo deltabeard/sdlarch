@@ -5,6 +5,7 @@
 
 static SDL_Window *g_win = NULL;
 static SDL_Renderer *g_ctx = NULL;
+static SDL_Texture *g_tex = NULL;
 static struct retro_frame_time_callback runloop_frame_time;
 static retro_usec_t runloop_frame_time_last = 0;
 static const uint8_t *g_kbd = NULL;
@@ -12,7 +13,6 @@ static const uint8_t *g_kbd = NULL;
 bool running = true;
 
 static struct {
-	GLuint tex_id;
     GLuint fbo_id;
     GLuint rbo_id;
 
@@ -251,10 +251,11 @@ static void refresh_vertex_data() {
 
 static void init_framebuffer(int width, int height)
 {
-    glGenFramebuffers(1, &g_video.fbo_id);
-    glBindFramebuffer(GL_FRAMEBUFFER, g_video.fbo_id);
+    //glGenFramebuffers(1, &g_video.fbo_id);
+    //glBindFramebuffer(GL_FRAMEBUFFER, g_video.fbo_id);
 
-    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, g_video.tex_id, 0);
+    SDL_SetRenderTarget(g_ctx, g_tex);
+    //glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, g_video.tex_id, 0);
 
     if (g_video.hw.depth && g_video.hw.stencil) {
         glGenRenderbuffers(1, &g_video.rbo_id);
@@ -276,7 +277,7 @@ static void init_framebuffer(int width, int height)
 
 
 static void resize_cb(int w, int h) {
-	glViewport(0, 0, w, h);
+	//glViewport(0, 0, w, h);
 }
 
 
@@ -321,65 +322,51 @@ static void create_window(int width, int height) {
 
     init_shaders();
 
-    //SDL_GL_SetSwapInterval(1);
-    //SDL_GL_SwapWindow(g_win); // make apitrace output nicer
-    SDL_RenderPresent(g_ctx);
-
     resize_cb(width, height);
 }
 
 static void video_configure(const struct retro_game_geometry *geom) {
-	int nwidth = geom->base_width;
-	int nheight = geom->base_height;
+    int nwidth = geom->base_width;
+    int nheight = geom->base_height;
 
-	if (!g_win)
-		create_window(nwidth, nheight);
+    if (!g_win)
+        create_window(nwidth, nheight);
 
-	if (g_video.tex_id)
-		glDeleteTextures(1, &g_video.tex_id);
-
-	if (!g_video.pixfmt)
-		g_video.pixfmt = GL_UNSIGNED_SHORT_5_5_5_1;
+    if (!g_video.pixfmt)
+        g_video.pixfmt = GL_UNSIGNED_SHORT_5_5_5_1;
 
     SDL_SetWindowSize(g_win, nwidth, nheight);
 
-	//glGenTextures(1, &g_video.tex_id);
-	g_video.tex_id = 1;
 
-	if (!g_video.tex_id)
-		die("Failed to create the video texture");
+    g_tex = SDL_CreateTexture(g_ctx, SDL_PIXELFORMAT_RGB888, SDL_TEXTUREACCESS_TARGET,
+                              nwidth, nheight);
 
-	g_video.pitch = geom->base_width * g_video.bpp;
+    if(g_tex == NULL)
+        die("Failed to create texture");
 
-	glBindTexture(GL_TEXTURE_2D, g_video.tex_id);
+    g_video.pitch = geom->base_width * g_video.bpp;
 
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, geom->max_width, geom->max_height, 0,
-			g_video.pixtype, g_video.pixfmt, NULL);
-
-	glBindTexture(GL_TEXTURE_2D, 0);
+    SDL_GL_BindTexture(g_tex, NULL, NULL); // TODO: Probably not needed.
+    SDL_SetTextureScaleMode(g_tex, SDL_ScaleModeNearest);
+    SDL_GL_UnbindTexture(g_tex);
 
     init_framebuffer(geom->base_width, geom->base_height);
 
-	g_video.tex_w = geom->max_width;
-	g_video.tex_h = geom->max_height;
-	g_video.clip_w = geom->base_width;
-	g_video.clip_h = geom->base_height;
-	printf("%dw * %dh, %d * %d\n",  geom->base_width, geom->base_height,
-			geom->max_width, geom->max_height);
+    g_video.tex_w = geom->max_width;
+    g_video.tex_h = geom->max_height;
+    g_video.clip_w = geom->base_width;
+    g_video.clip_h = geom->base_height;
+    printf("%dw * %dh, %d * %d\n",  geom->base_width, geom->base_height,
+           geom->max_width, geom->max_height);
 
-	refresh_vertex_data();
+    refresh_vertex_data();
 
     g_video.hw.context_reset();
 }
 
 
-static bool video_set_pixel_format(unsigned format) {
-	if (g_video.tex_id)
-		die("Tried to change pixel format after initialization.");
-
+static bool video_set_pixel_format(unsigned format)
+{
 	switch (format) {
 	case RETRO_PIXEL_FORMAT_0RGB1555:
 		g_video.pixfmt = GL_UNSIGNED_SHORT_5_5_5_1;
@@ -418,33 +405,35 @@ static void video_refresh(const void *data, unsigned width, unsigned height, uns
         refresh_vertex_data();
     }
 
-    glBindFramebuffer(GL_FRAMEBUFFER, 0);
-    glBindTexture(GL_TEXTURE_2D, g_video.tex_id);
+    SDL_SetRenderTarget(g_ctx, g_tex);
+    //glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+    SDL_GL_BindTexture(g_tex, NULL, NULL);
+   // glBindTexture(GL_TEXTURE_2D, g_video.tex_id);
 
     if (pitch != g_video.pitch) {
         g_video.pitch = pitch;
         glPixelStorei(GL_UNPACK_ROW_LENGTH, g_video.pitch / g_video.bpp);
     }
-
-    glClear(GL_COLOR_BUFFER_BIT);
-
     glUseProgram(g_shader.program);
 
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, g_video.tex_id);
+    SDL_RenderClear(g_ctx);
+    SDL_SetRenderTarget(g_ctx, NULL);
+    SDL_RenderCopy(g_ctx, g_tex, NULL, NULL);
+    //SDL_GL_BindTexture(g_tex, NULL, NULL);
+    //glActiveTexture(GL_TEXTURE0);
+    //glBindTexture(GL_TEXTURE_2D, g_video.tex_id);
 
     glBindVertexArray(g_shader.vao);
     glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
     glBindVertexArray(0);
 
     glUseProgram(0);
+    SDL_GL_UnbindTexture(g_tex);
 }
 
 static void video_deinit() {
-	if (g_video.tex_id)
-		glDeleteTextures(1, &g_video.tex_id);
 
-	g_video.tex_id = 0;
 }
 
 static void core_log(enum retro_log_level level, const char *fmt, ...) {
@@ -677,6 +666,8 @@ int main(int argc, char *argv[]) {
 
     // Load the game.
     core_load_game(argv[2]);
+
+    glUseProgramObjectARB(0);
 
     // Configure the player input devices.
     g_retro.retro_set_controller_port_device(0, RETRO_DEVICE_JOYPAD);
