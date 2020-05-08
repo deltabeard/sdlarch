@@ -411,7 +411,7 @@ static void core_log(enum retro_log_level level, const char *fmt, ...) {
 }
 
 static uintptr_t core_get_current_framebuffer() {
-    return g_video.fbo_id;
+    return 1;
 }
 
 static bool core_environment(unsigned cmd, void *data) {
@@ -667,7 +667,7 @@ int main(int argc, char *argv[]) {
 	SDL_SetRenderTarget(g_ctx, NULL);
 
         const SDL_Rect box = { .x = 50, .y = 50, .h = 50, .w = 50 };
-	SDL_RenderCopyEx(g_ctx, g_tex, NULL, &box, 90, NULL, 0);
+	SDL_RenderCopyEx(g_ctx, g_tex, NULL, NULL, 0, NULL, SDL_FLIP_VERTICAL);
         SDL_RenderPresent(g_ctx);
     }
 
