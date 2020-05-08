@@ -319,8 +319,27 @@ static void video_configure(const struct retro_game_geometry *geom) {
 
     g_video.pitch = geom->base_width * g_video.bpp;
 
-    //SDL_GL_BindTexture(g_tex, NULL, NULL); // TODO: Probably not needed.
-    //SDL_GL_UnbindTexture(g_tex);
+
+    //glGenFramebuffers(1, &g_video.fbo_id);
+    //glBindFramebuffer(GL_FRAMEBUFFER, g_video.fbo_id);
+
+    SDL_SetRenderTarget(g_ctx, g_tex);
+    //glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, g_video.tex_id, 0);
+
+    if ( g_video.hw.depth && g_video.hw.stencil ) {
+        glGenRenderbuffers ( 1, &g_video.rbo_id );
+        glBindRenderbuffer ( GL_RENDERBUFFER, g_video.rbo_id );
+        glRenderbufferStorage ( GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, nwidth, nheight );
+
+        glFramebufferRenderbuffer ( GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, g_video.rbo_id);
+    } else if ( g_video.hw.depth ) {
+        glGenRenderbuffers ( 1, &g_video.rbo_id );
+        glBindRenderbuffer ( GL_RENDERBUFFER, g_video.rbo_id );
+        glRenderbufferStorage ( GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, nwidth, nheight );
+
+        glFramebufferRenderbuffer ( GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, g_video.rbo_id );
+    }
+    SDL_RenderClear ( g_ctx );
 
     g_video.tex_w = geom->max_width;
     g_video.tex_h = geom->max_height;
@@ -667,7 +686,7 @@ int main(int argc, char *argv[]) {
 	SDL_SetRenderTarget(g_ctx, NULL);
 
         const SDL_Rect box = { .x = 50, .y = 50, .h = 50, .w = 50 };
-	SDL_RenderCopyEx(g_ctx, g_tex, NULL, NULL, 0, NULL, SDL_FLIP_VERTICAL);
+	SDL_RenderCopyEx(g_ctx, g_tex, NULL, NULL, 30, NULL, SDL_FLIP_VERTICAL);
         SDL_RenderPresent(g_ctx);
     }
 
