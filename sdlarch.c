@@ -14,7 +14,6 @@ bool running = true;
 
 static struct {
     GLuint fbo_id;
-    GLuint rbo_id;
 
     int glmajor;
     int glminor;
@@ -295,7 +294,7 @@ static void create_window(int width, int height) {
 
     init_shaders();
 
-    resize_cb(width, height);
+    //resize_cb(width, height);
 }
 
 static void video_configure(const struct retro_game_geometry *geom) {
@@ -327,17 +326,19 @@ static void video_configure(const struct retro_game_geometry *geom) {
     //glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, g_video.tex_id, 0);
 
     if ( g_video.hw.depth && g_video.hw.stencil ) {
-        glGenRenderbuffers ( 1, &g_video.rbo_id );
-        glBindRenderbuffer ( GL_RENDERBUFFER, g_video.rbo_id );
+	GLuint rbo_id;
+        glGenRenderbuffers ( 1, &rbo_id );
+        glBindRenderbuffer ( GL_RENDERBUFFER, rbo_id );
         glRenderbufferStorage ( GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, nwidth, nheight );
 
-        glFramebufferRenderbuffer ( GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, g_video.rbo_id);
+        glFramebufferRenderbuffer ( GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, rbo_id);
     } else if ( g_video.hw.depth ) {
-        glGenRenderbuffers ( 1, &g_video.rbo_id );
-        glBindRenderbuffer ( GL_RENDERBUFFER, g_video.rbo_id );
+	GLuint rbo_id;
+        glGenRenderbuffers ( 1, &rbo_id );
+        glBindRenderbuffer ( GL_RENDERBUFFER, rbo_id );
         glRenderbufferStorage ( GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, nwidth, nheight );
 
-        glFramebufferRenderbuffer ( GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, g_video.rbo_id );
+        glFramebufferRenderbuffer ( GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, rbo_id );
     }
     SDL_RenderClear ( g_ctx );
 
@@ -393,17 +394,6 @@ static void video_refresh(const void *data, unsigned width, unsigned height, uns
 
         refresh_vertex_data();
     }
-
-    if (pitch != g_video.pitch) {
-        g_video.pitch = pitch;
-        glPixelStorei(GL_UNPACK_ROW_LENGTH, g_video.pitch / g_video.bpp);
-    }
-    glUseProgram(g_shader.program);
-    glBindVertexArray(g_shader.vao);
-    glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
-    glBindVertexArray(0);
-
-    glUseProgram(0);
 }
 
 static void video_deinit() {
@@ -679,8 +669,13 @@ int main(int argc, char *argv[]) {
 
         SDL_SetRenderTarget(g_ctx, g_tex);
         SDL_GL_BindTexture(g_tex, NULL, NULL);
-        SDL_SetRenderTarget(g_ctx, g_tex);
         g_retro.retro_run();
+	    glUseProgram(g_shader.program);
+    glBindVertexArray(g_shader.vao);
+    glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+    glBindVertexArray(0);
+
+    glUseProgram(0);
 	SDL_GL_UnbindTexture(g_tex);
         SDL_RenderFlush(g_ctx);
 	SDL_SetRenderTarget(g_ctx, NULL);
